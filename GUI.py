@@ -1,7 +1,10 @@
 import sys
 import datetime
+import calendar
 import matplotlib
 import matplotlib.pyplot as plt
+import palettable.colorbrewer.qualitative as cb
+
 
 matplotlib.use("TkAgg")
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
@@ -20,6 +23,22 @@ import json
 import pandas as pd
 import numpy as np
 
+
+text_font = {'family': 'serif',
+        'weight': 'normal',
+        'size': 8
+        }
+
+title_font = {'family': 'serif',
+        'weight': 'bold',
+        'size': 10
+        }
+figure_font = {'family': 'serif',
+        'weight': 'heavy',
+        'size': 12
+        }
+
+
 category_list = ["Income", "Bills", "Food", "Travel", "Shopping", "Fun", "Misc", "Other"]
 
 LARGE_FONT = ("Verdana", 12)
@@ -28,8 +47,8 @@ SMALL_FONT = ("Verdana", 8)
 
 style.use("seaborn-talk")
 
-f = Figure(figsize=(5, 5), dpi=100, constrained_layout=True)
-
+f = Figure(figsize=(5, 5), dpi=100, constrained_layout=False)
+tod = datetime.datetime.today()  # today
 
 def update_dict(key, dict):
     # print(str(dict))
@@ -46,11 +65,15 @@ def update_dict(key, dict):
 
 # def popupfilters(self):
 def update_option_menu(op_menu, options, op_variables):
-    menu = op_menu["menu"]
-    menu.delete(0, "end")
-    for string in options:
-        menu.add_command(label=string.title(),
-                         command=lambda value=string.title(): op_variables.set(value))
+    op_menu['values'] = []
+    titled_options = [x.title() for x in options]
+    op_menu['values'] = titled_options
+    op_menu.set(titled_options[0])
+    # menu = op_menu["menu"]
+    # menu.delete(0, "end")
+    # for string in options:
+    #     menu.add_command(label=string.title(),
+    #                      command=lambda value=string.title(): op_variables.set(value))
 
 
 # def animate(i):
@@ -123,6 +146,9 @@ def categorize_df(df):
             'Home Services']
 
     df['Category2'] = ""
+    # Remove Credit Card Payments and money transfers, due to redundancy
+    drop_mask1 = (df["Category"] != "Credit Card Payment") & (df["Category"] != "Transfer")
+    df = df.loc[drop_mask1].copy()
 
     # Add Overall Category (Category2) based on Category
     df.loc[df["Category"].str.contains("|".join(Food)), "Category2"] = "Food"
@@ -199,13 +225,6 @@ class StartPage(tk.Frame):
         # Create dictionary for widget use later on
         self.controller.account_dict = {acct1: tk.IntVar(value=1, name=acct1) for acct1 in account_list}
 
-        # Update dropdown menus
-        # years = df.sort_index().index.strftime("%Y").astype("int").unique()
-        # update_option_menu(self.controller.startyear_dd, years, self.controller.ey_var)  # start year dropdown
-        # update_option_menu(self.controller.endyear_dd, years, self.controller.ey_var)  # end year dropdown
-        # overall_cat = df['Category2'].unique()
-        # update_option_menu(self.controller.dropdown, overall_cat, self.controller.cat_var)  # category dropdown
-
 
 class BudgetPage(tk.Frame):
 
@@ -220,7 +239,6 @@ class BudgetPage(tk.Frame):
 
         ##Dropdown for time range
         # Set list of options for month and year
-        tod = datetime.datetime.today()  # today
         duration = (tod - datetime.timedelta(days=(6 * 31))).strftime("%Y-%m")
         str_date = duration.split("-")
 
@@ -234,10 +252,10 @@ class BudgetPage(tk.Frame):
 
         # Set default selections for drop down menus
         self.em_var = tk.StringVar(self)
-        self.em_var.set(self.opt_month[-1])
+        self.em_var.set(tod.strftime("%B"))
 
         self.ey_var = tk.StringVar(self)
-        self.ey_var.set(self.opt_year[-1])
+        self.ey_var.set(tod.year)
 
         self.sm_var = tk.StringVar(self)
         self.sm_var.set(self.opt_month[int(str_date[1])])
@@ -251,9 +269,9 @@ class BudgetPage(tk.Frame):
         self.startyear_dd = ttk.Combobox(self, textvariable=self.sy_var, values=self.opt_year,
                                          state="disabled", width=12)
         self.endmonth_dd = ttk.Combobox(self, textvariable=self.em_var, values=self.opt_month,
-                                        state="disabled", width=12)
+                                        state="readonly", width=12)
         self.endyear_dd = ttk.Combobox(self, textvariable=self.ey_var, values=self.opt_year,
-                                       state="disabled", width=12)
+                                       state="readonly", width=12)
         # Pack drop down menus
         self.startmonth_dd.grid(row=2, column=0, sticky="WE")  # pack(side=tk.LEFT, padx=2)
         self.startyear_dd.grid(row=2, column=1, sticky="WE")  # pack(side=tk.LEFT, padx=2)
@@ -275,11 +293,11 @@ class BudgetPage(tk.Frame):
         self.dropdown.grid(row=3, column=2, columnspan=1)  # pack(side=tk.TOP) # side=tk.RIGHT
 
         # Dropdown for plot type
-        plot_options = ["Latest Month", "Relative to Income", "Summary", "Individual Category"]
+        self.plot_options = ["Monthly Breakdown", "Relative to Income", "Net Income", "Individual Category"]
         self.plt_var = tk.StringVar()
-        self.plt_var.set(plot_options[0])
-        self.plt_dd = ttk.Combobox(self, textvariable=self.plt_var, values=plot_options,
-                                   state="readonly", width=15)
+        self.plt_var.set(self.plot_options[0])
+        self.plt_dd = ttk.Combobox(self, textvariable=self.plt_var, values=self.plot_options,
+                                   state="readonly", width=17)
         self.plt_dd.grid(row=3, column=3)
         self.plt_dd.bind('<<ComboboxSelected>>', lambda event: self.on_select())
 
@@ -291,24 +309,24 @@ class BudgetPage(tk.Frame):
         # Canvas to plot on
         self.canvas = FigureCanvasTkAgg(f, self)
         self.canvas.draw()
-        self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=12, rowspan=16, padx=10,
+        self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=16, rowspan=20, padx=10,
                                          pady=10)  # pack(side=tk.BOTTOM, fill=tk.BOTH, padx=10, pady=10)  # fill=tk.BOTH, , expand=True
 
         # Button to calculate budget
         budget_button = ttk.Button(self, text="Calculate Budget",
                                    command=self.budget_cal)
-        budget_button.grid(row=2, column=13, columnspan=2)  # pack()
+        budget_button.grid(row=2, column=20, columnspan=2)  # pack()
 
         r = 4
         for cat5 in self.controller.budget_dict.keys():
-            tk.Label(self, text=cat5).grid(row=r, column=14)
-            tk.Entry(self, textvariable=self.controller.budget_dict[cat5]).grid(row=r, column=15)
+            tk.Label(self, text=cat5).grid(row=r, column=21)
+            tk.Entry(self, textvariable=self.controller.budget_dict[cat5]).grid(row=r, column=22)
             r += 1
 
         # Top 5 Categories
         self.top5 = tk.StringVar(value=" ")
         self.t5_label = tk.Label(self, text=self.top5)
-        self.t5_label.grid(row=2, column=17)
+        self.t5_label.grid(row=2, column=24)
 
     def popupfilters(self):
         top = tk.Tk()
@@ -405,24 +423,8 @@ class BudgetPage(tk.Frame):
     def plot_data(self, canvas):
         # Clear Figure
         f.clear()
-        a1 = f.add_subplot(211)
-        a2 = f.add_subplot(212)
-
-        # Get selected category from dropdown
-        selected_cat = self.cat_var.get()
-
-        # Get duration from entry or dropdown
-        start_month = self.sm_var.get()
-        start_year = self.sy_var.get()
-        start_str = start_month + " " + start_year
-        start_date = datetime.datetime.strptime(start_str, '%B %Y')
-
-        end_month = self.em_var.get()
-        end_year = self.ey_var.get()
-        end_str = end_month + " " + end_year
-        # TODO: Use last day of month for end month
-        # datetime.date(2000, 2, 1) - datetime.timedelta(days=1)
-        end_date = datetime.datetime.strptime(end_str, '%B %Y')
+        # a1 = f.add_subplot(211)
+        # a2 = f.add_subplot(212)
 
         # Get filter settings
         account_dict = self.controller.account_dict
@@ -432,52 +434,172 @@ class BudgetPage(tk.Frame):
 
         # Setup Dataframe
         df = self.controller.dataframe.copy()
+
         # Apply Filters
         df = df[(df['Account Name'].str.contains("|".join(accounts_on))) &
                 (df['Category2'].str.contains("|".join(categories_on)))]
-        # Apply Date Duration
-        df = df[(df.index >= start_date) & (df.index <= end_date)]
 
-        # Groupby
-        temp1_df = df.groupby([pd.Grouper(freq='M'), 'Category2'])['Amount']. \
-            agg(['mean', 'sum', 'max']).sort_values(by=['Date', 'sum'], ascending=[True, False])
-        temp1_df = temp1_df.reset_index(level='Category2')
+        option_selected = self.plt_dd.get()
 
-        # Apply Date Duration
-        # temp_df = temp_df[(temp_df.index >= start_date) & (temp_df.index <= end_date)]
-        # Extract only selected category
-        temp = temp1_df[temp1_df['Category2'] == str(selected_cat).lower()]
-        # Extract Selected Category from Dataframe for specified duration
-        # temp = temp_df[(temp_df.index > duration) & (temp_df['Category2'] == str(selected_cat).lower())]
-        # Set Date format for x-axis ticks
-        temp.index = temp.index.strftime("%b %Y")
+        if (option_selected == self.plot_options[0]) | (option_selected == self.plot_options[1]):
+            # Create axis for plot
+            a = f.add_subplot(111)
+            pie_colors = cb.Paired_8.hex_colors  # Colors to be used by pie chart
 
-        # Plot data
-        try:
-            temp.plot(kind='bar', ax=a1, rot=70)
-            # Plot Average line
-            a1.axhline(y=temp['sum'].mean(), linestyle='--', color='r', label='Avg Sum')
+            # Month Selected Filtering
+            end_date, start_date = self.get_dates()[:2]
+            # Filter Data between start and end dates
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
 
-            # Set rest of plot settings
-            a1.legend()
-            a1.set_xlabel('Month')
-            a1.set_ylabel('Cost ($)')
-            a1.set_title(selected_cat)
-        except TypeError as e:
-            a1.text(0.35, 0.5, e, dict(size=25), wrap=True)
-            a1.axis("Off")
+            # Get Total Expenses
+            temp2_df = df[(df['Category2'] != "income") & (df['Transaction Type'] == "debit")]
+            totExp_avg = temp2_df.groupby(pd.Grouper(freq="M"))["Amount"].sum().mean()
+            totIncome = df.loc[df['Category2'] == "income", "Amount"].sum()
+            temp2 = temp2_df.groupby([pd.Grouper(freq="M"), "Category2"])["Amount"].sum()
+            end_month = end_date.strftime("%B")
+            plt_title = "Total Expenses for " + end_month + ": $" + format(round(totExp_avg, 2), "6,.2f")
 
-        # Get Total Expenses
-        temp2_df = df[(df['Category2'] != "income") & (df['Transaction Type'] == "debit")]
-        totExp_avg = temp2_df.groupby(pd.Grouper(freq="M"))["Amount"].sum().mean()
-        temp2 = temp2_df.groupby([pd.Grouper(freq="M"), "Category2"])["Amount"].sum()
-        temp2 = temp2.reset_index(level='Category2')
-        temp2_pie = temp2.groupby("Category2")["Amount"].mean().sort_values(ascending=False)
+            if option_selected == self.plot_options[1]:
+                # temp2 = (temp2/totIncome)*100
+                plt_title = "Monthly Expenses Relative \n to Total Income: $" + format(round(totIncome, 2), "6,.2f")
+                pie_colors = cb.Accent_8.hex_colors
 
-        # Plot Pie Chart
-        a2.pie(temp2_pie, labels=list(temp2_pie.index), autopct='%1.1f%%')
-        a2.set_title("Average Monthly Total Expenses: $" + str(round(totExp_avg, 2)))
-        a1.legend()
+            temp2 = temp2.reset_index(level='Category2')
+            data2plot = temp2.groupby("Category2")["Amount"].mean().sort_values(ascending=False)
+
+            # Plot Pie Chart
+            # pie_explode = tuple([0.05]*len(data2plot.index))
+            pie_labels = [x.title() for x in data2plot.index]
+            pie_props = {"edgecolor": "w", 'linewidth': 1.5, 'linestyle': '-', 'antialiased': True}
+            a.pie(data2plot, startangle=45, wedgeprops=pie_props, colors=pie_colors, labels=pie_labels,
+                  autopct=lambda pct: self.pct_func(pct, data2plot, totExp_avg, totIncome, option_selected),
+                  pctdistance=0.65)
+
+            a.set_title(plt_title)
+
+        # ## Plot: Net Income
+        elif option_selected == self.plot_options[2]:
+            # Create axes
+            a1 = f.add_subplot(211)
+            a2 = f.add_subplot(212, sharex=a1)
+
+            # Get duration from entry or dropdown
+            end_date, start_date = self.get_dates(start=True)[:2]
+            # Filter Data between start and end date
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            # Create new DataFrame for data to plot
+            data2plot = pd.DataFrame()
+            data2plot["monthly_income"] = df[df["Category2"] == "income"].groupby(pd.Grouper(freq="M"))["Amount"].sum()
+            data2plot["monthly_expense"] = df[(df["Category2"] != "income") & (df['Transaction Type'] == "debit")].groupby(
+                pd.Grouper(freq="M"))["Amount"].sum()
+            data2plot["monthly_net"] = data2plot["monthly_income"]-data2plot["monthly_expense"]
+            # Format index
+            data2plot.index = data2plot.index.strftime("%b %y")
+
+            # Pre-plot Settings
+            bar_width = 0.3
+            x_labels = data2plot.index
+            x1 = np.arange(len(data2plot.index)) - bar_width/2
+            x2 = [x + bar_width for x in x1]
+
+            colors = {"light-green": (0.2, 0.8, 0.3, 0.6), "dark-green": (0.1, 0.9, 0.2, 0),
+                      "light-red": (0.8, 0.3, 0.2, 0.6), "dark-red": (0.9, 0.2, 0.1, 0),
+                      "light-blue": (0.2, 0.3, 0.8, 0.6), "dark-blue": (0.1, 0.2, 0.9, 0)}
+
+
+            # Plot Income vs Expenses
+            a1.bar(x=x1, height=data2plot["monthly_income"], width=bar_width, color=colors["light-green"],
+                   edgecolor=colors["dark-green"], label="Income", align="center")  # plots income bars
+            a1.bar(x=x2, height=data2plot["monthly_expense"], width=bar_width, color=colors["light-red"],
+                   edgecolor=colors["dark-red"], label="Expense", align="center")  # plots expense bars
+
+            # a1.autoscale(tight=True)  # suppose to fit everything inside figure
+            a1.grid(axis="y", color="black", alpha=.5, linewidth=.5)
+            a1.yaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))
+            a1.tick_params(axis='both', which='major', labelsize=8)
+            a1.label_outer()  # hides x-tick labels
+            a1.set_ymargin(0.3)  # adds margin to y limits
+            a1.legend(fontsize=8)  # adds legend
+            a1.set_title("Income vs Expense", fontsize=10)
+
+
+            # Plot Net Income
+            a2.bar(x=x1, height=data2plot["monthly_net"], width=bar_width, color=colors["light-blue"],
+                   edgecolor=colors["dark-blue"], tick_label=x_labels, label="Net Income", align="center")  # plots net income bars
+
+            # a2.autoscale(tight=True)
+            a2.set_ymargin(0.3)  # adds margin to y limits
+            a2.set_ylim(a2.get_ylim()[0], a1.get_ylim()[1])  # keeps original ymin limit, uses ymax limit from a1 axes
+            a2.set_title("Net Income", fontsize=10)
+            a2.tick_params(axis='both', which='major', labelsize=8)
+            a2.set_xticklabels(labels=a2.get_xticklabels(), rotation=45)   # rotates labels 45 degrees
+            a2.grid(axis="y", color="black", alpha=.5, linewidth=.5)  # adds y-grids to plot
+            a2.yaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))  # formats y ticks to $#,###
+
+
+        # Plot Individual Category
+        else:
+            # Create axes
+            a1 = f.add_subplot(211)
+            a2 = f.add_subplot(212)
+
+            # Get selected category from dropdown
+            end_date, start_date, selected_cat = self.get_dates(start=True)
+            # Filter Data between start and end dates
+            df = df[(df.index >= start_date) & (df.index <= end_date)]
+            # Narrow down to selected Category
+            df = df[df['Category2'] == str(selected_cat).lower()]
+            # Groupby
+            data2plot1 = df.groupby(pd.Grouper(freq='M'))['Amount']. \
+                agg(['mean', 'sum', 'max']).sort_values(by=['Date', 'sum'], ascending=[True, False])
+
+            # Set Date format for x-axis ticks
+            data2plot1.index = data2plot1.index.strftime("%b %y")
+
+            # Pre-plot Settings
+            bar_width = 0.3
+            x_labels = data2plot1.index
+            x1 = np.arange(len(data2plot1.index)) - bar_width / 2  # sum
+            x2 = [x + bar_width for x in x1]  # max
+            x3 = [x - bar_width for x in x1]  # mean
+
+            colors = {"light-green": (0.2, 0.8, 0.3, 0.6), "dark-green": (0.1, 0.9, 0.2, 0),
+                      "light-red": (0.8, 0.3, 0.2, 0.6), "dark-red": (0.9, 0.2, 0.1, 0),
+                      "light-blue": (0.2, 0.3, 0.8, 0.6), "dark-blue": (0.1, 0.2, 0.9, 0)}
+
+            pie_colors = cb.Dark2_8.hex_colors
+
+            # Plot data
+            try:
+                # Plot bars
+                a1.bar(x=x1, height=data2plot1["sum"], width=bar_width, color=colors["light-red"],
+                       edgecolor=colors["dark-red"], label="Sum", align="center")  # plots sum bars
+                a1.bar(x=x2, height=data2plot1["max"], width=bar_width, color=colors["light-blue"],
+                       edgecolor=colors["dark-blue"], label="Max", align="center")  # plots max bars
+                a1.bar(x=x3, height=data2plot1["mean"], width=bar_width, color=colors["light-green"],
+                       edgecolor=colors["dark-green"], label="Mean", align="center", tick_label=x_labels)  # plots mean bars
+                # data2plot1.plot(kind='bar', ax=a1, rot=70)
+
+                # Plot Average line
+                a1.axhline(y=data2plot1['sum'].mean(), linestyle='--', color='r', label='Avg Sum')
+
+                # Set rest of plot settings
+                a1.legend(fontsize=8)
+                a1.set_xticklabels(labels=a1.get_xticklabels(), rotation=45)
+                a1.set_ylabel('Cost ($)')
+                a1.set_ymargin(0.3)
+                a1.tick_params(axis='both', which='major', labelsize=8)
+                a1.set_title(selected_cat)
+                a1.yaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))
+            except TypeError as e:
+                a1.text(0.35, 0.5, e, dict(size=25), wrap=True)
+                a1.axis("Off")
+
+            data2plot2 = df.groupby("Category")['Amount'].sum().sort_values(ascending=False)
+
+            # Plot pie
+            a2.pie(data2plot2, labels=list(data2plot2.index), colors=pie_colors, autopct='%1.1f%%',
+                   textprops={'fontsize': 8})
 
         plt.tight_layout()
         canvas.draw()
@@ -511,29 +633,72 @@ class BudgetPage(tk.Frame):
 
         # Update top 5 Categories
 
-        self.top5.set("Top 5 Categories")
-        top5 = df.groupby("Category2")["Amount"].agg({"Total": "sum"}).sort_values(by="Total", ascending=False)
-        income = float(top5.loc["income"])
-        top5["percent"] = (top5["Total"] / income) * 100
-        top5.drop(labels="income", axis=0, inplace=True)
-        top5_list = list(top5.index)
-        for i in range(len(top5)):
-            tk.Label(self, text=top5_list[i]).grid(r)
+        # self.top5.set("Top 5 Categories")
+        # top5 = df.groupby("Category2")["Amount"].agg({"Total": "sum"}).sort_values(by="Total", ascending=False)
+        # income = float(top5.loc["income"])
+        # top5["percent"] = (top5["Total"] / income) * 100
+        # top5.drop(labels="income", axis=0, inplace=True)
+        # top5_list = list(top5.index)
+        # for i in range(len(top5)):
+        #     tk.Label(self, text=top5_list[i]).grid(r)
 
     def on_select(self, event=None):
-        if not self.plt_dd.get() == "Latest Month":
+        # Settings for Monthly Breakdown
+        if (self.plt_dd.get() == self.plot_options[0]) | (self.plt_dd.get() == self.plot_options[1]):
+            self.dropdown["state"] = "disabled"
+            self.startmonth_dd["state"] = "disabled"
+            self.startyear_dd["state"] = "disabled"
+            self.endmonth_dd["state"] = "readonly"
+            self.endyear_dd["state"] = "readonly"
+
+        elif self.plt_dd.get() == self.plot_options[2]:
+            self.dropdown["state"] = "disabled"
+            self.startmonth_dd["state"] = "readonly"
+            self.startyear_dd["state"] = "readonly"
+            self.endmonth_dd["state"] = "readonly"
+            self.endyear_dd["state"] = "readonly"
+        else:
+            self.dropdown["state"] = "readonly"
             self.startmonth_dd["state"] = "readonly"
             self.startyear_dd["state"] = "readonly"
             self.endmonth_dd["state"] = "readonly"
             self.endyear_dd["state"] = "readonly"
             self.dropdown["state"] = "readonly"
-        else:
-            self.startmonth_dd["state"] = "disabled"
-            self.startyear_dd["state"] = "disabled"
-            self.endmonth_dd["state"] = "disabled"
-            self.endyear_dd["state"] = "disabled"
-            self.dropdown["state"] = "disabled"
         pass
+
+    def pct_func(self, pct, data, exp, inc, opt):
+        actual = (pct / 100) * exp
+        if opt == self.plot_options[0]:
+            percent = pct
+        elif opt == self.plot_options[1]:
+            percent = (pct*exp)/inc  # same as (((pct/100)*exp)/inc)*100
+        else:
+            percent = None
+        return "{:.1f}%\n(${:,.2f})".format(percent, actual)
+
+    def get_dates(self, end=True, start=False):
+        # Get end date
+        end_month = self.em_var.get()
+        end_year = self.ey_var.get()
+        end_day = str(calendar.monthrange(int(end_year),
+                                          int(datetime.datetime.strptime(end_month, "%B").strftime("%m")))[1])
+        end_str = end_month + " " + end_day + " " + end_year
+        end_date = datetime.datetime.strptime(end_str, '%B %d %Y')
+
+        if start:
+            # Get start date
+            start_month = self.sm_var.get()
+            start_year = self.sy_var.get()
+            start_str = start_month + " " + start_year
+            start_date = datetime.datetime.strptime(start_str, '%B %Y')
+        else:
+            start_str = end_month + " " + "01" + " " + end_year
+            start_date = datetime.datetime.strptime(start_str, '%B %d %Y')
+
+        # Get selected category from dropdown
+        selected_cat = self.cat_var.get()
+
+        return end_date, start_date, selected_cat
 
 
 app = Budgetapp()
