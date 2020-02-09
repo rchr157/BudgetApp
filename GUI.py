@@ -38,8 +38,10 @@ figure_font = {'family': 'serif',
         'size': 12
         }
 
-
-category_list = ["Income", "Bills", "Food", "Travel", "Shopping", "Fun", "Misc", "Other"]
+cat_path = r"C:\Users\xrchr\SynologyDrive\Desktop\Coding\Python\Projects\6_Money_Completed\DataSource\categories.csv"
+categories_df = pd.read_csv(cat_path)
+# category_list = ["Income", "Bills", "Food", "Travel", "Shopping", "Fun", "Misc", "Other"]
+category_list = list(categories_df.columns)
 
 LARGE_FONT = ("Verdana", 12)
 NORM_FONT = ("Verdana", 10)
@@ -91,6 +93,7 @@ class Budgetapp(tk.Tk):
         self.account_dict = dict()
         self.category_dict = {cat: tk.IntVar(value=1, name=cat) for cat in category_list}
         self.budget_dict = {cat2: tk.DoubleVar(value=0, name=cat2 + "-bgt") for cat2 in category_list}
+        self.budget_dict.update({"Savings": tk.DoubleVar(value=0, name="Saving-bgt")})
         self.price_dict = pd.DataFrame()
 
         p1 = tk.Image('photo', file='wallet.png')
@@ -130,36 +133,28 @@ class Budgetapp(tk.Tk):
 
 # Create Start Page
 def categorize_df(df):
-    # Simplify Categories
-    Food = ['Food & Dining', 'Restaurants', 'Fast Food', 'Groceries', 'Alcohol & Bars', 'Coffee Shops']
-    Bills = ['Mortgage & Rent', 'Utilities', 'Mobile Phone', 'Home Insurance', 'Auto Insurance',
-             'Bills & Utilities', 'Auto & Transport', 'Auto Payment', 'Service & Parts', 'Laundry',
-             'Internet', 'Gas & Fuel', 'Insurance']
-    Travel = ['Parking', 'Rental Car & Taxi', 'Air Travel', 'Hotel', 'Travel', 'Public Transportation']
-    Fun = ['Movies & DVDs', 'Gift', 'Entertainment', 'Arts', 'Sports', 'Amusement']
-    Income = ['State Tax', 'Income', 'Interest Income', 'Paycheck', 'Federal Tax']
-    Shopping = ['Pharmacy', 'Shopping', 'Clothing', 'Electronics & Software', 'Business Services', 'Shipping',
-                'Home Supplies', 'Home Improvement', 'Furnishings', 'Personal Care', 'Hobbies', 'Books', 'Music',
-                'Office Supplies', 'Sporting Goods']
-    Misc = ['Charity', 'Cash & ATM', 'Bank Fee', 'Doctor', 'Auto & Transport', 'ATM Fee', 'Printing', 'Dentist',
-            'Student Loans', 'Education', 'Uncategorized', 'Health & Fitness', 'Pet Food & Supplies',
-            'Home Services']
-
+    # Add column Category2 - Parent Category
+    df["Parent-Cat"] = ""
     df['Category2'] = ""
     # Remove Credit Card Payments and money transfers, due to redundancy
     drop_mask1 = (df["Category"] != "Credit Card Payment") & (df["Category"] != "Transfer")
     df = df.loc[drop_mask1].copy()
 
-    # Add Overall Category (Category2) based on Category
-    df.loc[df["Category"].str.contains("|".join(Food)), "Category2"] = "Food"
-    df.loc[df["Category"].str.contains("|".join(Bills)), "Category2"] = 'Bills'
-    df.loc[df["Category"].str.contains("|".join(Travel)), "Category2"] = 'Travel'
-    df.loc[df["Category"].str.contains("|".join(Fun)), "Category2"] = 'Fun'
-    df.loc[df["Category"].str.contains("|".join(Income)), "Category2"] = 'Income'
-    df.loc[df["Category"].str.contains("|".join(Shopping)), "Category2"] = 'Shopping'
-    df.loc[df["Category"].str.contains("|".join(Misc)), "Category2"] = 'Misc'
+    # Organize into Parent Category
+    for column in category_list:
+        col = list(categories_df[column].dropna())
+        df.loc[df["Category"].str.contains("|".join(col)), "Parent-Cat"] = column
 
     # Leftover categories get added to Miscellaneous
+    df.loc[df["Parent-Cat"] == "", "Parent-Cat"] = 'Uncategorized'
+
+    most = df.groupby("Parent-Cat")["Parent-Cat"].count().sort_values(ascending=False)
+    most_list = list(most[:7].index)
+    # Organize into Top 8 Categories
+    for column in most_list:
+        col = list(categories_df[column].dropna())
+        df.loc[df["Category"].str.contains("|".join(col)), "Category2"] = column
+
     df.loc[df["Category2"] == "", "Category2"] = 'Other'
 
     return df
@@ -284,7 +279,7 @@ class BudgetPage(tk.Frame):
 
         # Drop Down menu to select which category to plot
         # TODO: Add dynamic drop down menu
-        self.cat_options = ["Income", "Bills", "Food", "Travel", "Shopping", "Fun", "Misc", "Other"]
+        self.cat_options = category_list
         self.cat_var = tk.StringVar(self)
         self.cat_var.set(self.cat_options[0])  # default value
 
@@ -460,12 +455,31 @@ class BudgetPage(tk.Frame):
             plt_title = "Total Expenses for " + end_month + ": $" + format(round(totExp_avg, 2), "6,.2f")
 
             if option_selected == self.plot_options[1]:
-                # temp2 = (temp2/totIncome)*100
                 plt_title = "Monthly Expenses Relative \n to Total Income: $" + format(round(totIncome, 2), "6,.2f")
                 pie_colors = cb.Accent_8.hex_colors
 
-            temp2 = temp2.reset_index(level='Category2')
-            data2plot = temp2.groupby("Category2")["Amount"].mean().sort_values(ascending=False)
+            # Consolidate categories less than 5% together
+            prct = (temp2/totExp_avg)*100
+            misc_list = []
+            if prct[prct < 5].count() > 1:  # If more than 1 cat is less than 5% combine
+                other = 0
+                new_index = ""
+                data2plot = pd.Series()
+                for ind1, ind2 in temp2.index:
+                    if prct.loc[(ind1, ind2)] < 5:
+                        other += temp2.loc[(ind1, ind2)]
+                        new_index = "misc"
+                        misc_list.append(ind2.title() + ": " + str(round(prct.loc[(ind1, ind2)], 2)) + "%")
+                    else:
+                        data2plot.loc[ind2] = temp2.loc[(ind1, ind2)]
+
+                data2plot.loc[new_index] = other
+            else:
+                temp2 = temp2.reset_index(level='Category2')
+                data2plot = temp2.groupby("Category2")["Amount"].mean().sort_values(ascending=False)
+
+
+
 
             # Plot Pie Chart
             # pie_explode = tuple([0.05]*len(data2plot.index))
@@ -473,9 +487,15 @@ class BudgetPage(tk.Frame):
             pie_props = {"edgecolor": "w", 'linewidth': 1.5, 'linestyle': '-', 'antialiased': True}
             a.pie(data2plot, startangle=45, wedgeprops=pie_props, colors=pie_colors, labels=pie_labels,
                   autopct=lambda pct: self.pct_func(pct, data2plot, totExp_avg, totIncome, option_selected),
-                  pctdistance=0.65)
+                  pctdistance=0.65, textprops={'fontsize': 10})
 
             a.set_title(plt_title)
+            if misc_list:
+                misc_str = "\n".join(misc_list)
+                props = dict(boxstyle='round', facecolor='grey', alpha=0.5)
+                # place a text box in upper left in axes coords
+                a.text(0.0, 0.0, misc_str, transform=a.transAxes, fontsize=8,
+                        verticalalignment='bottom', bbox=props)
 
         # ## Plot: Net Income
         elif option_selected == self.plot_options[2]:
@@ -605,33 +625,69 @@ class BudgetPage(tk.Frame):
         canvas.draw()
 
     def budget_cal(self):
-        tod = datetime.datetime.today()  # today
-        duration = (tod - datetime.timedelta(days=(6 * 31))).strftime("%Y-%m")
+
+        # Create copy of dataframe to use
         df = self.controller.dataframe.copy()
-        df = df[df.index > duration]
+        option_selected = self.plt_dd.get()
+        if (option_selected == self.plot_options[0]) | (option_selected == self.plot_options[1]):
+            end_date, start_date = self.get_dates()[:2]
+        else:
+            end_date, start_date = self.get_dates(start=True)[:2]
+        # Filter data between start and end dates
+        df = df[(df.index >= start_date) & (df.index <= end_date)]
 
-        # Caclulate averages
-        income = df[(df['Category2'] == "income")].groupby(
-            pd.Grouper(freq='M'))['Amount'].max().mean()
-        avg_list = ['bills', 'food', 'travel', 'shopping', 'fun', 'misc', 'other']
-        averages = []
+        # TODO: Switch Calculation if only looking at a month or over a few months
+        # Calculate Average Income
+        income = df.loc[df['Category2'] == "income", "Amount"].copy()
+        expense = df[(df['Category2'] != "income") & (df['Transaction Type'] == "debit")].copy()
+        # When only looking at only one month
+        if end_date.strftime("%B") == start_date.strftime("%B"):
+            avg_income = income.sum()  # Total Income for the month
+            avg_expense = expense["Amount"].sum()  # # Total Expenses for the month
+        # When looking over several months
+        else:
+            avg_income = income.groupby(pd.Grouper(freq="M"))["Amount"].sum().mean()  # Average of total monthly income
+            avg_expense = expense.groupby(pd.Grouper(freq="M"))["Amount"].sum().mean()  # Average of total monthly expenses
+        # TODO: finish calculating budget based on income, 50/30/20, etc
+        # Create 50/30/20 categories:
+        # 50%: Bills, Food ; 30%: Fun, Shopping, Travel, Misc, Other; 20%: Savings
+        bgt_503020 = [1.25, 1.25, 1.15, 1.15, 1.15, 1.15]
+        # Calculate Weights for each category
+        weights = expense.groupby([pd.Grouper(freq="M"), "Category2"])["Amount"].sum()
+        weights = weights/avg_expense
+        budget = weights*income*bgt_503020
 
-        for item in avg_list:
-            b = df[(df['Category2'] == item)].groupby(
-                pd.Grouper(freq='M'))['Amount'].sum().mean()
-            b *= 1.03  # add 3% margin
-            averages.append(b)
 
-        savings = income - sum(averages)
 
-        budget_list = [income] + averages + [savings]
 
-        r = 0
-        for key in self.controller.budget_dict.keys():
-            self.controller.budget_dict[key].set(value=round(budget_list[r], ndigits=2))
-            r += 1
 
-        # Update top 5 Categories
+        # tod = datetime.datetime.today()  # today
+        # duration = (tod - datetime.timedelta(days=(6 * 31))).strftime("%Y-%m")
+        # df = self.controller.dataframe.copy()
+        # df = df[df.index > duration]
+        #
+        # # Caclulate averages
+        # income = df[(df['Category2'] == "income")].groupby(
+        #     pd.Grouper(freq='M'))['Amount'].max().mean()
+        # avg_list = ['bills', 'food', 'travel', 'shopping', 'fun', 'misc', 'other']
+        # averages = []
+        #
+        # for item in avg_list:
+        #     b = df[(df['Category2'] == item)].groupby(
+        #         pd.Grouper(freq='M'))['Amount'].sum().mean()
+        #     b *= 1.03  # add 3% margin
+        #     averages.append(b)
+        #
+        # savings = income - sum(averages)
+        #
+        # budget_list = [income] + averages + [savings]
+        #
+        # r = 0
+        # for key in self.controller.budget_dict.keys():
+        #     self.controller.budget_dict[key].set(value=round(budget_list[r], ndigits=2))
+        #     r += 1
+        #
+        # # Update top 5 Categories
 
         # self.top5.set("Top 5 Categories")
         # top5 = df.groupby("Category2")["Amount"].agg({"Total": "sum"}).sort_values(by="Total", ascending=False)
