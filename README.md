@@ -1,5 +1,5 @@
 # BudgetApp
-App for viewing transaction data from Mint. Data is summarized into your top 7 categories and remaining categories are grouped into the "Other" category.
+App built with tkinter for viewing transaction data from Mint. Data is summarized into your top 7 categories and remaining categories are grouped into the "Other" category.
 
 ### Expected format
 Date | Description | Original Descrition | Amount | Transaction Type | Category | Account Name | Labels | Notes 
