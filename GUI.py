@@ -1,27 +1,20 @@
-import sys
 import datetime
 import calendar
 import matplotlib
 import matplotlib.pyplot as plt
 import palettable.colorbrewer.qualitative as cb
 
-
-matplotlib.use("TkAgg")
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.figure import Figure
-import matplotlib.animation as animation
-from matplotlib import style
-import seaborn as sns
-
 import tkinter as tk
 from tkinter import ttk
 from tkinter.filedialog import askopenfilename
 
-from urllib.request import urlopen, Request
-import json
-
 import pandas as pd
 import numpy as np
+
+matplotlib.use("TkAgg")
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+from matplotlib import style
 
 
 text_font = {'family': 'serif',
@@ -38,9 +31,8 @@ figure_font = {'family': 'serif',
         'size': 12
         }
 
-cat_path = r"C:\Users\xrchr\SynologyDrive\Desktop\Coding\Python\Projects\6_Money_Completed\DataSource\categories.csv"
+cat_path = "\DataSource\categories.csv"
 categories_df = pd.read_csv(cat_path)
-# category_list = ["Income", "Bills", "Food", "Travel", "Shopping", "Fun", "Misc", "Other"]
 category_list = list(categories_df.columns)
 top7_list = ["category1", "category2", "category3", "category4", "category5", "category6", "category7", "category8"]
 
@@ -53,20 +45,14 @@ style.use("seaborn-talk")
 f = Figure(figsize=(5, 5), dpi=100, constrained_layout=False)
 tod = datetime.datetime.today()  # today
 
+
 def update_dict(key, dict):
-    # print(str(dict))
-    # print(key)
-    # print(dict[key].get())
     if dict[key].get():
-        # print("TRUE!")
         dict[key].set(0)
     else:
-        # print("NOT TRUE!")
         dict[key].set(1)
-    # print(dict[key].get())
 
 
-# def popupfilters(self):
 def update_option_menu(op_menu, options):
     op_menu['values'] = []
     titled_options = [x.title() for x in options]
@@ -74,7 +60,6 @@ def update_option_menu(op_menu, options):
     op_menu.set(titled_options[0])
 
 
-# def animate(i):
 def quitt():
     exit()
 
@@ -159,16 +144,11 @@ class StartPage(tk.Frame):
         button_budget = ttk.Button(self, text="Budget", command=lambda: controller.show_frame(BudgetPage))
         button_budget.grid(row=2, column=2, pady=5, padx=50, sticky="we")
 
-        # self.progress = ttk.Progressbar(self, orient="horizontal", length=200)
-
         self.load_text = tk.StringVar()
         label_load = tk.Label(self, textvariable=self.load_text)
         label_load.grid(row=3, column=2, sticky="we")
 
     def load(self, controller):
-        # self.progress.grid(row=2, column=0, rowspan=2, sticky="we")
-        # self.progress.config(mode='indeterminate')
-        # self.progress.start()
         self.load_text.set("Please wait up to 30 seconds to load file.")
         filename = askopenfilename(filetypes=[("Excel files", ".xlsx .xls .csv"), ("All Files", "*.*")],
                                    title="Select a file")
@@ -203,9 +183,6 @@ class StartPage(tk.Frame):
         # Create dictionary for widget use later on
         self.controller.account_dict = {acct1: tk.IntVar(value=1, name=acct1) for acct1 in account_list}
 
-        # self.progress.stop()
-        # self.progress.grid_forget()
-
     def categorize_df(self, df):
         # Add column Category2 - Parent Category
         df["Parent-Cat"] = ""
@@ -231,10 +208,10 @@ class StartPage(tk.Frame):
 
         df.loc[df["Category2"] == "", "Category2"] = 'Other'
         self.controller.simple_cat = list(df["Category2"].unique())
-        # update_option_menu(self.controller.BudgetPge.categories_dd, self.controller.simple_cat)
+
         # Update
         renew_dict(self.controller.simple_cat, self.controller)
-        # update_option_menu(self.controller.categories_dd, self.controller.simple_cat)
+
         return df
 
 
@@ -253,9 +230,8 @@ class BudgetPage(tk.Frame):
         duration = (tod - datetime.timedelta(days=(6 * 31))).strftime("%Y-%m")
         str_date = duration.split("-")
 
-        # TODO: Make years more dynamic
         years = list(range(2005, tod.year + 1, 1))  # initial default
-        # years = self.controller.dataframe.sort_index().index.strftime("%Y").astype("int")
+    
         self.opt_month = ['January', 'February', 'March', 'April', 'May', 'June',
                           'July', 'August', 'September', 'October', 'November',
                           'December']
@@ -269,7 +245,7 @@ class BudgetPage(tk.Frame):
         self.ey_var.set(tod.year)
 
         self.sm_var = tk.StringVar(self)
-        self.sm_var.set(self.opt_month[int(str_date[1])])
+        self.sm_var.set(self.opt_month[int(str_date[1])-1])
 
         self.sy_var = tk.StringVar(self)
         self.sy_var.set(str_date[0])
@@ -284,18 +260,16 @@ class BudgetPage(tk.Frame):
         self.endyear_dd = ttk.Combobox(self, textvariable=self.ey_var, values=self.opt_year,
                                        state="readonly", width=12)
         # Pack drop down menus
-        self.startmonth_dd.grid(row=2, column=0, sticky="WE")  # pack(side=tk.LEFT, padx=2)
-        self.startyear_dd.grid(row=2, column=1, sticky="WE")  # pack(side=tk.LEFT, padx=2)
-        self.endmonth_dd.grid(row=2, column=2, sticky="WE")  # pack(side=tk.LEFT, padx=2)
-        self.endyear_dd.grid(row=2, column=3, sticky="WE")  # pack(side=tk.LEFT, padx=2)
+        self.startmonth_dd.grid(row=2, column=0, sticky="WE")  
+        self.startyear_dd.grid(row=2, column=1, sticky="WE")  
+        self.endmonth_dd.grid(row=2, column=2, sticky="WE")  
+        self.endyear_dd.grid(row=2, column=3, sticky="WE")  
 
         # Button to select which filters to apply
         filterBtn = ttk.Button(self, text="Set Filters", command=lambda: self.popupfilters())
-        filterBtn.grid(row=3, column=0, columnspan=2)  # pack(side=tk.RIGHT)
+        filterBtn.grid(row=3, column=0, columnspan=2)  
 
         # Drop Down menu to select which category to plot
-        # TODO: Add dynamic drop down menu
-        # self.cat_options = self.controller.simple_cat
         self.cat_var = tk.StringVar(self)
         self.cat_var.set(self.controller.simple_cat[0])  # default value
 
@@ -304,7 +278,7 @@ class BudgetPage(tk.Frame):
                                           state="disabled", width=12,
                                           postcommand=lambda: update_option_menu(self.categories_dd,
                                                                                  self.controller.simple_cat,))
-        self.categories_dd.grid(row=3, column=2, columnspan=1)  # pack(side=tk.TOP) # side=tk.RIGHT
+        self.categories_dd.grid(row=3, column=2, columnspan=1)  
 
         # Dropdown for plot type
         self.plot_options = ["Monthly Breakdown", "Relative to Income", "Net Income", "Individual Category"]
@@ -318,18 +292,18 @@ class BudgetPage(tk.Frame):
         # Button to plot category
         plot_button = ttk.Button(self, text="Plot",
                                  command=lambda: self.plot_data(self.canvas))
-        plot_button.grid(row=3, column=4)  # pack()
+        plot_button.grid(row=3, column=4)  
 
         # Canvas to plot on
         self.canvas = FigureCanvasTkAgg(f, self)
         self.canvas.draw()
         self.canvas.get_tk_widget().grid(row=4, column=0, columnspan=16, rowspan=20, padx=10,
-                                         pady=10)  # pack(side=tk.BOTTOM, fill=tk.BOTH, padx=10, pady=10)  # fill=tk.BOTH, , expand=True
+                                         pady=10)  
 
         # Button to calculate budget
         budget_button = ttk.Button(self, text="Calculate Budget",
                                    command=self.budget_cal)
-        budget_button.grid(row=2, column=20, columnspan=2)  # pack()
+        budget_button.grid(row=2, column=20, columnspan=2)  
 
         r = 4
         for cat5 in self.controller.budget_dict.keys():
@@ -342,7 +316,6 @@ class BudgetPage(tk.Frame):
         top.wm_title("Filter Options")
 
         label = ttk.Label(top, text="Select which filters to apply", font=NORM_FONT)
-        # label.pack(side="top", fill="x", pady=10)
         label.grid(row=0, column=0, padx=5, pady=5)
 
         # Accounts Filter
@@ -351,13 +324,12 @@ class BudgetPage(tk.Frame):
 
         r = 0
         row = 2
-        # print("Account Loop")
         for acct in self.controller.account_dict.keys():
             chk = tk.Checkbutton(top, text=acct.title(), variable=self.controller.account_dict[acct], onvalue=1,
                                  offvalue=0,
                                  command=lambda account_name=acct: update_dict(key=account_name,
                                                                                dict=self.controller.account_dict))
-            # chk.select()
+
             if self.controller.account_dict[acct].get(): chk.select()
             chk.grid(row=row, column=r, pady=5, sticky="W")
             r += 1
@@ -400,7 +372,7 @@ class BudgetPage(tk.Frame):
         top.max_entry = tk.Entry(top, text=str(self.controller.price_dict.loc[0, 'max']))
         top.max_entry.grid(row=row + 2, column=4, pady=5, sticky="W")
 
-        okaybutton = ttk.Button(top, text="Okay", command=lambda: okayfun(self, top=top))  # lambda: okayfun(top)
+        okaybutton = ttk.Button(top, text="Okay", command=lambda: okayfun(self, top=top))  
         okaybutton.grid(row=row + 3, column=3, padx=5, pady=5, sticky="W")
 
         def okayfun(self, top):
@@ -411,24 +383,12 @@ class BudgetPage(tk.Frame):
             if not top.min_entry.get() == "":
                 cont.price_dict["min"] = float(top.min_entry.get())
 
-            # # Verify Code is working
-            # print("Max Price: " + str(cont.price_dict.loc[0, 'max']))
-            # print("Min Price: " + str(cont.price_dict.loc[0, 'min']))
-            # print(top.max_entry.get())
-            # print(top.min_entry.get())
-
             # Update OptionMenu for Categories
             category_names = cont.categoryName_dict
             category_dict = cont.category_dict
             self.controller.simple_cat = [category_names[key].get().lower() for (key, value)
                                           in category_dict.items() if value.get() == 1]
             update_option_menu(self.categories_dd, self.controller.simple_cat)
-            # menu = self.dropdown["menu"]
-            # menu.delete(0, "end")
-            # categories_on = [key.lower() for (key, value) in cont.category_dict.items() if value.get() == 1]
-            # for string in categories_on:
-            #     menu.add_command(label=string.title(),
-            #                      command=lambda value=string.title(): self.ddvar.set(value))
 
             # Close pop up window
             top.destroy()
@@ -436,15 +396,12 @@ class BudgetPage(tk.Frame):
     def plot_data(self, canvas):
         # Clear Figure
         f.clear()
-        # a1 = f.add_subplot(211)
-        # a2 = f.add_subplot(212)
 
         # Get filter settings
         account_dict = self.controller.account_dict
         category_dict = self.controller.category_dict
         category_names = self.controller.categoryName_dict
         accounts_on = [key for (key, value) in account_dict.items() if value.get() == 1]
-        # TODO: Fix dictionaries
         categories_on = [category_names[key].get().lower() for (key, value) in category_dict.items() if value.get() == 1]
 
         # Setup Dataframe
@@ -500,11 +457,7 @@ class BudgetPage(tk.Frame):
                 temp2 = temp2.reset_index(level='Category2')
                 data2plot = temp2.groupby("Category2")["Amount"].mean().sort_values(ascending=False)
 
-
-
-
             # Plot Pie Chart
-            # pie_explode = tuple([0.05]*len(data2plot.index))
             pie_labels = [x.title() for x in data2plot.index]
             pie_props = {"edgecolor": "w", 'linewidth': 1.5, 'linestyle': '-', 'antialiased': True}
             a.pie(data2plot, startangle=45, wedgeprops=pie_props, colors=pie_colors, labels=pie_labels,
@@ -554,14 +507,12 @@ class BudgetPage(tk.Frame):
                       "light-red": (0.8, 0.3, 0.2, 0.6), "dark-red": (0.9, 0.2, 0.1, 0),
                       "light-blue": (0.2, 0.3, 0.8, 0.6), "dark-blue": (0.1, 0.2, 0.9, 0)}
 
-
             # Plot Income vs Expenses
             a1.bar(x=x1, height=data2plot["monthly_income"], width=bar_width, color=colors["light-green"],
                    edgecolor=colors["dark-green"], label="Income", align="center")  # plots income bars
             a1.bar(x=x2, height=data2plot["monthly_expense"], width=bar_width, color=colors["light-red"],
                    edgecolor=colors["dark-red"], label="Expense", align="center")  # plots expense bars
 
-            # a1.autoscale(tight=True)  # suppose to fit everything inside figure
             a1.grid(axis="y", color="black", alpha=.5, linewidth=.5)
             a1.yaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))
             a1.tick_params(axis='both', which='major', labelsize=8)
@@ -575,7 +526,6 @@ class BudgetPage(tk.Frame):
             a2.bar(x=x1, height=data2plot["monthly_net"], width=bar_width, color=colors["light-blue"],
                    edgecolor=colors["dark-blue"], tick_label=x_labels, label="Net Income", align="center")  # plots net income bars
 
-            # a2.autoscale(tight=True)
             a2.set_ymargin(0.3)  # adds margin to y limits
             a2.set_ylim(a2.get_ylim()[0], a1.get_ylim()[1])  # keeps original ymin limit, uses ymax limit from a1 axes
             a2.set_title("Net Income", fontsize=10)
@@ -583,7 +533,6 @@ class BudgetPage(tk.Frame):
             a2.set_xticklabels(labels=a2.get_xticklabels(), rotation=45)   # rotates labels 45 degrees
             a2.grid(axis="y", color="black", alpha=.5, linewidth=.5)  # adds y-grids to plot
             a2.yaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))  # formats y ticks to $#,###
-
 
         # Plot Individual Category
         else:
@@ -632,7 +581,6 @@ class BudgetPage(tk.Frame):
                        edgecolor=colors["dark-blue"], label="Max", align="center")  # plots max bars
                 a1.bar(x=x3, height=data2plot1["mean"], width=bar_width, color=colors["light-green"],
                        edgecolor=colors["dark-green"], label="Mean", align="center", tick_label=x_labels)  # plots mean bars
-                # data2plot1.plot(kind='bar', ax=a1, rot=70)
 
                 # Plot Average line
                 a1.axhline(y=data2plot1['sum'].mean(), linestyle='--', color='r', label='Avg Sum')
@@ -640,7 +588,6 @@ class BudgetPage(tk.Frame):
                 # Set rest of plot settings
                 a1.legend(fontsize=8)
                 a1.set_xticklabels(labels=a1.get_xticklabels(), rotation=45)
-                # a1.set_ylabel('Cost ($)')
                 a1.set_ymargin(0.3)
                 a1.tick_params(axis='both', which='major', labelsize=8)
                 a1.set_title(selected_cat)
@@ -649,7 +596,6 @@ class BudgetPage(tk.Frame):
                 a1.text(0.35, 0.5, e, dict(size=25), wrap=True)
                 a1.axis("Off")
 
-            # temp2_df = df[(df['Category2'] != "income") & (df['Transaction Type'] == "debit")]
             totExp_avg = df.groupby(pd.Grouper(freq="M"))["Amount"].sum().sum()  # Get Average Total expenses
             temp2 = df.groupby("Category")['Amount'].sum().sort_values(ascending=False)  # Group by sub Categories
             # Consolidate categories less than 5% together
@@ -701,7 +647,7 @@ class BudgetPage(tk.Frame):
             warn_message = "There is no data for the specified range. Please select another range."
             tk.messagebox.showwarning(title=warn_title, message=warn_message)
             return
-        # TODO: Switch Calculation if only looking at a month or over a few months
+
         # Calculate Average Income
         income = df.loc[df['Category2'] == "income", "Amount"].copy()
         expense = df[(df['Category2'] != "income") & (df['Transaction Type'] == "debit")].copy()
@@ -710,7 +656,7 @@ class BudgetPage(tk.Frame):
             avg_income = income.sum()  # Total Income for the month
             avg_expense = expense["Amount"].sum()  # # Total Expenses for the month
             weights = expense.groupby("Category2")["Amount"].sum()
-            # weights = weights.reset_index(level='Date', drop=True)
+            
         # When looking over several months
         else:
             avg_income = income.groupby(pd.Grouper(freq="M")).sum().mean()  # Average of total monthly income
@@ -719,7 +665,7 @@ class BudgetPage(tk.Frame):
         # Calculate Budget for each category
         if avg_expense > avg_income:
             weights = weights/avg_expense
-            budget = weights*(avg_income*.8) # *bgt_503020
+            budget = weights*(avg_income*.8)
             warning = True
         else:
             budget = weights
@@ -740,43 +686,6 @@ class BudgetPage(tk.Frame):
                            "The recommended budget is meant to help you cut back enough to have 20% for savings." \
                            "Good Luck, and happy budgeting."
             tk.messagebox.showwarning(title=warn_title, message=warn_message)
-
-        # tod = datetime.datetime.today()  # today
-        # duration = (tod - datetime.timedelta(days=(6 * 31))).strftime("%Y-%m")
-        # df = self.controller.dataframe.copy()
-        # df = df[df.index > duration]
-        #
-        # # Caclulate averages
-        # income = df[(df['Category2'] == "income")].groupby(
-        #     pd.Grouper(freq='M'))['Amount'].max().mean()
-        # avg_list = ['bills', 'food', 'travel', 'shopping', 'fun', 'misc', 'other']
-        # averages = []
-        #
-        # for item in avg_list:
-        #     b = df[(df['Category2'] == item)].groupby(
-        #         pd.Grouper(freq='M'))['Amount'].sum().mean()
-        #     b *= 1.03  # add 3% margin
-        #     averages.append(b)
-        #
-        # savings = income - sum(averages)
-        #
-        # budget_list = [income] + averages + [savings]
-        #
-        # r = 0
-        # for key in self.controller.budget_dict.keys():
-        #     self.controller.budget_dict[key].set(value=round(budget_list[r], ndigits=2))
-        #     r += 1
-        #
-        # # Update top 5 Categories
-
-        # self.top5.set("Top 5 Categories")
-        # top5 = df.groupby("Category2")["Amount"].agg({"Total": "sum"}).sort_values(by="Total", ascending=False)
-        # income = float(top5.loc["income"])
-        # top5["percent"] = (top5["Total"] / income) * 100
-        # top5.drop(labels="income", axis=0, inplace=True)
-        # top5_list = list(top5.index)
-        # for i in range(len(top5)):
-        #     tk.Label(self, text=top5_list[i]).grid(r)
 
     def on_select(self, event=None):
         # Settings for Monthly Breakdown
@@ -799,16 +708,14 @@ class BudgetPage(tk.Frame):
             self.startyear_dd["state"] = "readonly"
             self.endmonth_dd["state"] = "readonly"
             self.endyear_dd["state"] = "readonly"
-            # self.categories_dd["state"] = "readonly"
             update_option_menu(self.categories_dd, self.controller.simple_cat)
-        pass
 
     def pct_func(self, pct, data, exp, inc, opt):
         actual = (pct / 100) * exp
         if opt == self.plot_options[0]:
             percent = pct
         elif opt == self.plot_options[1]:
-            percent = (pct*exp)/inc  # same as (((pct/100)*exp)/inc)*100
+            percent = (pct*exp)/inc  
         else:
             percent = None
         return "{:.1f}%\n(${:,.2f})".format(percent, actual)
@@ -845,7 +752,6 @@ class BudgetPage(tk.Frame):
         titled_options = [x.title() for x in options]
         op_menu['values'] = titled_options
         op_menu.set(titled_options[0])
-        pass
 
 
 app = Budgetapp()
